@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { TaskRouter } from './services/taskRouter.js'
 import { OpenClawAdapter } from './services/openclawAdapter.js'
 import { HermesAdapter } from './services/hermesAdapter.js'
+import { MemorySync } from './services/memorySync.js'
+import { HealthCheckService } from './services/healthCheck.js'
 
 const app = express()
 const server = createServer(app)
@@ -23,6 +25,8 @@ app.use(express.json())
 const taskRouter = new TaskRouter(io)
 const openclawAdapter = new OpenClawAdapter()
 const hermesAdapter = new HermesAdapter()
+const memorySync = new MemorySync()
+const healthCheck = new HealthCheckService()
 
 // 设置适配器
 taskRouter.setAdapters(openclawAdapter, hermesAdapter)
@@ -57,15 +61,28 @@ async function connectExternalServices() {
 // 启动时连接
 connectExternalServices()
 
+// 定期健康检查 (每 5 分钟)
+setInterval(async () => {
+  const health = await healthCheck.check()
+  if (health.status !== 'healthy') {
+    console.warn('⚠️ 健康检查异常:', health)
+    io.emit('health:warning', health)
+  }
+}, 300000)
+
 // API 路由
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    services: {
-      openclaw: openclawAdapter.connected,
-      hermes: hermesAdapter.connected
-    }
+app.get('/api/health', async (req, res) => {
+  const health = await healthCheck.check()
+  res.json(health)
+})
+
+app.get('/api/health/status', (req, res) => {
+  const lastCheck = healthCheck.getLastCheck()
+  const trend = healthCheck.getTrend()
+  res.json({
+    lastCheck,
+    trend,
+    history: healthCheck.getHistory(10)
   })
 })
 

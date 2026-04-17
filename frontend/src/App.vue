@@ -95,13 +95,21 @@ import ReviewPanel from './components/ReviewPanel.vue'
 import MemoryPanel from './components/MemoryPanel.vue'
 import LogPanel from './components/LogPanel.vue'
 import { TaskFlowManager } from './utils/taskFlowManager'
-import { connectWebSocket } from './api/coordinator'
+import { TaskRetryManager } from './utils/taskRetryManager'
+import { connectWebSocket, getWebSocketStatus } from './api/coordinator'
+import { logInfo, logError } from './utils/errorHandler'
 
 const layout = ref('left-right')
 const leftSize = ref(50)
 const topSize = ref(50)
 const activeTab = ref('plan')
 const taskFlowManager = ref(null)
+const taskRetryManager = ref(null)
+const systemStatus = ref({
+  websocket: 'connecting',
+  openclaw: 'unknown',
+  hermes: 'unknown'
+})
 
 const tabs = [
   { id: 'plan', name: '规划', icon: '📋' },
@@ -166,12 +174,22 @@ onMounted(() => {
   connectWebSocket({
     onConnect: () => {
       console.log('✅ WebSocket 已连接')
+      systemStatus.value.websocket = 'connected'
+      logInfo('WebSocket 已连接')
     },
-    onDisconnect: () => {
-      console.log('❌ WebSocket 已断开')
+    onDisconnect: (reason) => {
+      console.log('❌ WebSocket 已断开:', reason)
+      systemStatus.value.websocket = 'disconnected'
+      logInfo(`WebSocket 已断开：${reason}`, { type: 'warning' })
+    },
+    onError: (error) => {
+      console.error('❌ WebSocket 错误:', error)
+      systemStatus.value.websocket = 'error'
+      logError(error, { context: 'WebSocket' })
     },
     onTaskCreated: (task) => {
       console.log('📋 新任务创建:', task)
+      logInfo(`新任务创建：${task.id}`)
     },
     onTaskUpdated: (task) => {
       console.log('📝 任务更新:', task)
@@ -183,7 +201,18 @@ onMounted(() => {
   
   // 初始化任务流管理器
   taskFlowManager.value = new TaskFlowManager()
+  
+  // 初始化任务重试管理器
+  taskRetryManager.value = new TaskRetryManager()
+  
   console.log('🚀 双子星系统已启动')
+  logInfo('双子星系统已启动')
+  
+  // 定期检查系统状态
+  setInterval(() => {
+    const wsStatus = getWebSocketStatus()
+    systemStatus.value.websocket = wsStatus.status
+  }, 10000)
 })
 
 onUnmounted(() => {
