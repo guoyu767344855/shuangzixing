@@ -10,64 +10,45 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
+        <button 
+          @click="reconnect"
+          class="text-xs text-blue-500 hover:underline"
+        >
+          🔗 重连
+        </button>
         <span :class="['status-indicator', connected ? 'running' : 'failed']"></span>
         <span class="text-xs text-gray-500">{{ connected ? '已连接' : '未连接' }}</span>
       </div>
     </div>
     
-    <!-- 消息列表 -->
-    <div class="flex-1 overflow-y-auto p-4" ref="messageContainer">
-      <div v-if="messages.length === 0" class="text-center text-gray-400 py-8">
-        <p>💬 开始对话吧</p>
-        <p class="text-sm mt-2">告诉 OpenClaw 你的目标</p>
-      </div>
+    <!-- IFrame 嵌入 OpenClaw WebUI -->
+    <div class="flex-1 relative">
+      <iframe 
+        ref="openclawFrame"
+        :src="openclawUrl"
+        class="w-full h-full border-0"
+        @load="onOpenClawLoad"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+      ></iframe>
       
-      <div 
-        v-for="message in messages" 
-        :key="message.id"
-        :class="['message', message.role]"
-      >
-        <div class="text-xs text-gray-400 mb-1">
-          {{ message.role === 'user' ? '你' : '🧠 OpenClaw' }} · {{ message.time }}
-        </div>
-        <div class="text-sm" v-html="renderMarkdown(message.content)"></div>
-      </div>
-      
-      <!-- 规划展示 -->
-      <div v-if="currentPlan" class="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
-        <h3 class="font-semibold text-purple-700 mb-2">📋 执行计划</h3>
-        <div class="space-y-2">
-          <div 
-            v-for="(step, index) in currentPlan.steps" 
-            :key="index"
-            class="flex items-center gap-2 text-sm"
-          >
-            <span :class="['w-5 h-5 rounded-full flex items-center justify-center text-xs', 
-              step.status === 'completed' ? 'bg-green-500 text-white' : 
-              step.status === 'running' ? 'bg-blue-500 text-white' : 
-              'bg-gray-300']">
-              {{ step.status === 'completed' ? '✓' : step.status === 'running' ? '⏳' : index + 1 }}
-            </span>
-            <span :class="step.status === 'completed' ? 'text-green-700' : 'text-gray-700'">
-              {{ step.description }}
-            </span>
-          </div>
-        </div>
-        <div class="mt-3 text-xs text-purple-600">
-          → 已下发给 Hermes 执行
+      <!-- 加载状态 -->
+      <div v-if="!loaded" class="absolute inset-0 flex items-center justify-center bg-gray-50">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p class="text-gray-500">正在连接 OpenClaw...</p>
         </div>
       </div>
     </div>
     
-    <!-- 输入区 -->
+    <!-- 输入区 (可选，用于直接对话) -->
     <div class="p-3 border-t border-gray-200">
       <div class="flex gap-2">
         <input 
           v-model="inputMessage"
           @keyup.enter="sendMessage"
           type="text"
-          placeholder="输入你的目标..."
-          class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500 text-sm"
+          placeholder="直接与 OpenClaw 对话..."
+          class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-purple-500 text-sm"
         />
         <button 
           @click="sendMessage"
@@ -81,85 +62,98 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
-import { marked } from 'marked'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useSessionStore } from '../stores/sessionStore'
+import { sendWS, connectWebSocket } from '../api/coordinator'
 
-const connected = ref(true)
-const messages = ref([
-  {
-    id: '1',
-    role: 'user',
-    content: '帮我分析这个 Excel 文件',
-    time: '14:52'
-  },
-  {
-    id: '2',
-    role: 'openclaw',
-    content: '好的，我来规划一下这个任务。\n\n我建议分为 3 步执行：\n1. **读取文件** - 加载 Excel 内容\n2. **提取数据** - 分析关键指标\n3. **生成报告** - 输出分析结果\n\n现在开始执行...',
-    time: '14:52'
-  }
-])
+const sessionStore = useSessionStore()
 
-const currentPlan = ref({
-  steps: [
-    { description: '读取文件', status: 'completed' },
-    { description: '提取数据', status: 'running' },
-    { description: '生成报告', status: 'pending' }
-  ]
-})
-
+const openclawUrl = ref('http://localhost:8080') // OpenClaw WebUI 地址
+const openclawFrame = ref(null)
+const connected = ref(false)
+const loaded = ref(false)
 const inputMessage = ref('')
-const messageContainer = ref(null)
 
-const renderMarkdown = (text) => {
-  return marked.parse(text)
+// OpenClaw WebUI 加载完成
+const onOpenClawLoad = () => {
+  console.log('✅ OpenClaw WebUI 已加载')
+  loaded.value = true
+  connected.value = true
+  
+  // 监听来自 OpenClaw 的消息
+  window.addEventListener('message', handleOpenClawMessage)
 }
 
+// 处理 OpenClaw 消息
+const handleOpenClawMessage = (event) => {
+  // 验证来源
+  if (!event.origin.includes('localhost:8080')) return
+  
+  const { type, data } = event.data
+  console.log('📨 收到 OpenClaw 消息:', type, data)
+  
+  if (type === 'openclaw:plan') {
+    // OpenClaw 生成了规划
+    console.log('📋 收到规划:', data)
+    
+    // 添加到会话
+    sessionStore.addMessage('openclaw', {
+      role: 'openclaw',
+      content: `规划完成：${data.goal}\n\n步骤:\n` + data.steps.map((s, i) => `${i + 1}. ${s.description}`).join('\n')
+    })
+    
+    // 触发任务创建
+    window.dispatchEvent(new CustomEvent('openclaw:plan', { detail: data }))
+  }
+  
+  if (type === 'openclaw:review') {
+    // OpenClaw 审查完成
+    console.log('🔍 审查完成:', data)
+    
+    sessionStore.addMessage('openclaw', {
+      role: 'openclaw',
+      content: `审查结果：${data.review_status === 'approved' ? '✅ 通过' : '❌ 需修改'}\n\n评分：${data.quality_score}\n意见：${data.comments}`
+    })
+    
+    // 触发审查完成事件
+    window.dispatchEvent(new CustomEvent('openclaw:review', { detail: data }))
+  }
+}
+
+// 发送消息到 OpenClaw
 const sendMessage = async () => {
-  if (!inputMessage.value.trim()) return
+  if (!inputMessage.value.trim() || !openclawFrame.value) return
   
   const message = {
-    id: Date.now().toString(),
     role: 'user',
-    content: inputMessage.value,
-    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    content: inputMessage.value
   }
   
-  messages.value.push(message)
+  sessionStore.addMessage('openclaw', message)
+  
+  // 发送到 OpenClaw WebUI
+  openclawFrame.value.contentWindow.postMessage({
+    type: 'user:message',
+    data: message
+  }, openclawUrl.value)
+  
   inputMessage.value = ''
-  
-  await nextTick()
-  scrollToBottom()
-  
-  // TODO: 发送到 OpenClaw
 }
 
-const scrollToBottom = () => {
-  if (messageContainer.value) {
-    messageContainer.value.scrollTop = messageContainer.value.scrollHeight
-  }
+// 重新连接
+const reconnect = () => {
+  loaded.value = false
+  connected.value = false
+  openclawFrame.value.src = openclawUrl.value + '?t=' + Date.now()
 }
+
+// 清理
+onUnmounted(() => {
+  window.removeEventListener('message', handleOpenClawMessage)
+})
 </script>
 
 <style scoped>
-.message {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 12px;
-  max-width: 85%;
-}
-
-.message.user {
-  background-color: #3B82F6;
-  color: white;
-  margin-left: auto;
-}
-
-.message.openclaw {
-  background-color: #f0f0f0;
-  border-left: 3px solid #8B5CF6;
-}
-
 .status-indicator {
   width: 8px;
   height: 8px;

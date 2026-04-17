@@ -94,11 +94,14 @@ import HermesPanel from './components/HermesPanel.vue'
 import ReviewPanel from './components/ReviewPanel.vue'
 import MemoryPanel from './components/MemoryPanel.vue'
 import LogPanel from './components/LogPanel.vue'
+import { TaskFlowManager } from './utils/taskFlowManager'
+import { connectWebSocket } from './api/coordinator'
 
 const layout = ref('left-right')
 const leftSize = ref(50)
 const topSize = ref(50)
 const activeTab = ref('plan')
+const taskFlowManager = ref(null)
 
 const tabs = [
   { id: 'plan', name: '规划', icon: '📋' },
@@ -157,6 +160,35 @@ onMounted(() => {
   const savedLayout = localStorage.getItem('preferredLayout')
   if (savedLayout) {
     layout.value = savedLayout
+  }
+  
+  // 初始化 WebSocket 连接
+  connectWebSocket({
+    onConnect: () => {
+      console.log('✅ WebSocket 已连接')
+    },
+    onDisconnect: () => {
+      console.log('❌ WebSocket 已断开')
+    },
+    onTaskCreated: (task) => {
+      console.log('📋 新任务创建:', task)
+    },
+    onTaskUpdated: (task) => {
+      console.log('📝 任务更新:', task)
+    },
+    onTaskStatus: (status) => {
+      console.log('🔄 任务状态:', status)
+    }
+  })
+  
+  // 初始化任务流管理器
+  taskFlowManager.value = new TaskFlowManager()
+  console.log('🚀 双子星系统已启动')
+})
+
+onUnmounted(() => {
+  if (taskFlowManager.value) {
+    taskFlowManager.value.destroy()
   }
 })
 </script>
