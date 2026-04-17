@@ -12,7 +12,15 @@ const __dirname = dirname(__filename)
  * 支持 SQLite (基础) + ChromaDB (向量搜索)
  */
 export class MemorySync {
-  constructor(dbPath = './data/memories.db') {
+  constructor(dbPath = '../data/memories.db') {
+    // 确保 data 目录存在
+    import('node:fs').then(({ mkdirSync, existsSync }) => {
+      const dataDir = new URL('../data', import.meta.url)
+      if (!existsSync(dataDir)) {
+        mkdirSync(dataDir, { recursive: true })
+      }
+    })
+    
     this.db = new Database(dbPath)
     this.memories = []
     this.chromaDB = new ChromaDBService()

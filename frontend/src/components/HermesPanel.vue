@@ -24,15 +24,43 @@
     <!-- IFrame 嵌入 Hermes WebUI -->
     <div class="flex-1 relative">
       <iframe 
+        v-if="!connectionError"
         ref="hermesFrame"
         :src="hermesUrl"
         class="w-full h-full border-0"
         @load="onHermesLoad"
+        @error="onHermesError"
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
       ></iframe>
       
+      <!-- 连接错误提示 -->
+      <div v-if="connectionError" class="absolute inset-0 flex items-center justify-center bg-gray-50">
+        <div class="text-center max-w-md p-6">
+          <div class="text-6xl mb-4">🛠️</div>
+          <h3 class="text-lg font-semibold text-gray-700 mb-2">Hermes 未连接</h3>
+          <p class="text-sm text-gray-500 mb-4">
+            Hermes WebUI 服务未在运行<br>
+            当前地址：{{ hermesUrl }}
+          </p>
+          <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4 text-left text-xs text-blue-700">
+            <strong>解决方案：</strong>
+            <ol class="mt-2 space-y-1 list-decimal list-inside">
+              <li>启动 Hermes 服务</li>
+              <li>或修改配置指向实际地址</li>
+              <li>或使用模拟模式测试</li>
+            </ol>
+          </div>
+          <button 
+            @click="tryReconnect"
+            class="bg-amber-500 text-white px-4 py-2 rounded hover:bg-amber-600 transition text-sm"
+          >
+            🔄 重试连接
+          </button>
+        </div>
+      </div>
+      
       <!-- 加载状态 -->
-      <div v-if="!loaded" class="absolute inset-0 flex items-center justify-center bg-gray-50">
+      <div v-else-if="!loaded" class="absolute inset-0 flex items-center justify-center bg-gray-50">
         <div class="text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
           <p class="text-gray-500">正在连接 Hermes...</p>
@@ -67,6 +95,7 @@ const hermesUrl = ref('http://localhost:8081') // Hermes WebUI 地址
 const hermesFrame = ref(null)
 const connected = ref(false)
 const loaded = ref(false)
+const connectionError = ref(false)
 const currentTask = ref(null)
 
 // Hermes WebUI 加载完成
@@ -74,12 +103,31 @@ const onHermesLoad = () => {
   console.log('✅ Hermes WebUI 已加载')
   loaded.value = true
   connected.value = true
+  connectionError.value = false
   
   // 监听来自 Hermes 的消息
   window.addEventListener('message', handleHermesMessage)
   
   // 监听任务下发事件
   window.addEventListener('hermes:execute', handleExecuteTask)
+}
+
+// Hermes 连接错误
+const onHermesError = () => {
+  console.error('❌ Hermes 连接失败')
+  loaded.value = false
+  connected.value = false
+  connectionError.value = true
+}
+
+// 重试连接
+const tryReconnect = () => {
+  loaded.value = false
+  connectionError.value = false
+  // 强制重新加载 IFrame
+  if (hermesFrame.value) {
+    hermesFrame.value.src = hermesUrl.value + '?t=' + Date.now()
+  }
 }
 
 // 处理 Hermes 消息
