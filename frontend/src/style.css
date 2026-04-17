@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* 分屏拖拽条 */
+.splitter {
+  background-color: #e0e0e0;
+  transition: background-color 0.2s;
+}
+
+.splitter:hover {
+  background-color: #3B82F6;
+}
+
+.splitter.horizontal {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.splitter.vertical {
+  height: 4px;
+  cursor: row-resize;
+}
+
+/* 标签页样式 */
+.tab-button {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  background-color: #f0f0f0;
+}
+
+.tab-button.active {
+  border-bottom-color: #3B82F6;
+  color: #3B82F6;
+}
+
+/* 消息气泡 */
+.message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  max-width: 85%;
+}
+
+.message.user {
+  background-color: #3B82F6;
+  color: white;
+  margin-left: auto;
+}
+
+.message.openclaw {
+  background-color: #f0f0f0;
+  border-left: 3px solid #8B5CF6;
+}
+
+.message.hermes {
+  background-color: #f0f0f0;
+  border-left: 3px solid #F59E0B;
+}
+
+/* 任务卡片 */
+.task-card {
+  padding: 12px;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.task-card:hover {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.task-card.active {
+  border-left: 3px solid #3B82F6;
+}
+
+/* 进度条 */
+.progress-bar {
+  height: 8px;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #3B82F6;
+  transition: width 0.3s ease;
+}
+
+/* 状态指示器 */
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator.running {
+  background-color: #10B981;
+  animation: pulse 2s infinite;
+}
+
+.status-indicator.pending {
+  background-color: #F59E0B;
+}
+
+.status-indicator.completed {
+  background-color: #3B82F6;
+}
+
+.status-indicator.failed {
+  background-color: #EF4444;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
