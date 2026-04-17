@@ -56,6 +56,30 @@ export const api = {
       body: JSON.stringify(memoryData)
     })
     return res.json()
+  },
+  
+  async searchMemories(query, limit = 10) {
+    const res = await fetch(`${API_BASE}/api/memories/search?q=${encodeURIComponent(query)}&limit=${limit}`)
+    return res.json()
+  },
+  
+  async getMemoryStats() {
+    const res = await fetch(`${API_BASE}/api/memories/stats`)
+    return res.json()
+  },
+  
+  async deleteMemory(memoryId) {
+    const res = await fetch(`${API_BASE}/api/memories/${memoryId}`, {
+      method: 'DELETE'
+    })
+    return res.json()
+  },
+  
+  async clearMemories() {
+    const res = await fetch(`${API_BASE}/api/memories`, {
+      method: 'DELETE'
+    })
+    return res.json()
   }
 }
 

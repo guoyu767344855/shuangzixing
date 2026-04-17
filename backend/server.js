@@ -139,21 +139,81 @@ app.post('/api/sessions', (req, res) => {
 })
 
 // 记忆相关 API
-app.get('/api/memories', (req, res) => {
-  res.json(memories)
+app.get('/api/memories', async (req, res) => {
+  try {
+    const memories = await memorySync.getRecentMemories(50)
+    res.json(memories)
+  } catch (error) {
+    console.error('获取记忆失败:', error)
+    res.status(500).json({ error: error.message })
+  }
 })
 
-app.post('/api/memories', (req, res) => {
-  const memory = {
-    id: uuidv4(),
-    content: req.body.content,
-    source: req.body.source,
-    embedding: req.body.embedding,
-    created_at: new Date().toISOString()
+app.post('/api/memories', async (req, res) => {
+  try {
+    const memory = await memorySync.addMemory(
+      req.body.content,
+      req.body.source,
+      req.body.type || 'conversation',
+      req.body.metadata || {}
+    )
+    io.emit('memory:created', memory)
+    res.json(memory)
+  } catch (error) {
+    console.error('添加记忆失败:', error)
+    res.status(500).json({ error: error.message })
   }
-  memories.push(memory)
-  io.emit('memory:created', memory)
-  res.json(memory)
+})
+
+app.get('/api/memories/search', async (req, res) => {
+  try {
+    const { q, limit = 10 } = req.query
+    if (!q) {
+      return res.status(400).json({ error: '缺少搜索参数 q' })
+    }
+    
+    const memories = await memorySync.searchMemories(q, parseInt(limit))
+    res.json(memories)
+  } catch (error) {
+    console.error('搜索记忆失败:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.get('/api/memories/stats', async (req, res) => {
+  try {
+    const stats = await memorySync.getStats()
+    res.json(stats)
+  } catch (error) {
+    console.error('获取统计失败:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.delete('/api/memories/:id', async (req, res) => {
+  try {
+    const deleted = await memorySync.deleteMemory(req.params.id)
+    if (!deleted) {
+      return res.status(404).json({ error: '记忆未找到' })
+    }
+    res.json({ success: true })
+  } catch (error) {
+    console.error('删除记忆失败:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.delete('/api/memories', async (req, res) => {
+  try {
+    const cleared = await memorySync.clearMemories()
+    if (!cleared) {
+      return res.status(500).json({ error: '清空失败' })
+    }
+    res.json({ success: true })
+  } catch (error) {
+    console.error('清空记忆失败:', error)
+    res.status(500).json({ error: error.message })
+  }
 })
 
 // WebSocket 连接
